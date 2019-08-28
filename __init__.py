@@ -11,7 +11,7 @@
 # list within a given gtk.TextView widget
 # The signal 'tag-selected' is emitted together with the tag as argument when a tag is selected
 
-# V0.93
+# v0.93
 # Signal added
 
 import logging
@@ -33,11 +33,11 @@ class AutoCompletionPlugin(PluginClass):
     plugin_info = {
         'name': _('Tag Auto Completion'), # T: plugin name
         'description': _('''\
-This plugin provides auto completion for tags. When you press the @ key, 
+This plugin provides auto completion for tags. When you press the @ key,
 a list of available tags are shown and can be selected (via tab, space or enter, mouse or cursor).
 See configuration for tab key handling.
 
-(V0.91)
+(v0.93)
 '''), # T: plugin description
         'author': "Murat Güven",
         'help': 'Plugins:Tag Auto Completion',
@@ -365,7 +365,7 @@ class AutoCompletion(gobject.GObject):
         buffer.insert(start, selected_data + space)
 
         # now emit signal 'tag-selected' with tag in selected_data to
-        # hand over tag 
+        # hand over tag
         self.emit('tag-selected', selected_data)
 
     def get_iter_pos(self, textview, window):
