@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 # Copyright 2017 Murat Guven <muratg@online.de>
+# Copyright 2019 Shivam Sharma <shivam.src@gmail.com>
 # This is a plugin for ZimWiki from Jaap Karssenberg <jaap.karssenberg@gmail.com>
 #
 # This plugin provides auto completion for tags similiar to code completion in code editors.
@@ -11,15 +12,18 @@
 # list within a given gtk.TextView widget
 # The signal 'tag-selected' is emitted together with the tag as argument when a tag is selected
 
-# v0.93
-# Signal added
+# v0.94 ((2019-08-28)): Ported to Zim 0.71, with GTK+ v3
+# v0.93 : Signal added
 
 import logging
-import gobject
-import gtk
-import gtk.gdk
+from gi.repository import GObject
+from gi.repository import Gtk
+from gi.repository import Gdk
 
-from zim.plugins import PluginClass, WindowExtension, extends
+from zim.notebook.index.tags import TagsView
+
+from zim.plugins import PluginClass
+from zim.gui.mainwindow import MainWindowExtension
 from zim.actions import action
 from zim.gui.widgets import Window, BrowserTreeView, ScrolledWindow
 
@@ -37,9 +41,9 @@ This plugin provides auto completion for tags. When you press the @ key,
 a list of available tags are shown and can be selected (via tab, space or enter, mouse or cursor).
 See configuration for tab key handling.
 
-(v0.93)
+(v0.94)
 '''), # T: plugin description
-        'author': "Murat Güven",
+        'author': "Murat Güven\nShivam Sharma",
         'help': 'Plugins:Tag Auto Completion',
     }
 
@@ -51,8 +55,8 @@ See configuration for tab key handling.
 
 
 
-@extends('MainWindow')
-class MainWindowExtension(WindowExtension):
+# @extends('MainWindow')
+class AutocompleteMainWindowExtension(MainWindowExtension):
 
     uimanager_xml = '''
     <ui>
@@ -68,16 +72,17 @@ class MainWindowExtension(WindowExtension):
 
 
     def __init__(self, plugin, window):
-        WindowExtension.__init__(self, plugin, window)
+        MainWindowExtension.__init__(self, plugin, window)
         self.plugin = plugin
         self.window = window
-        self.connectto(window.pageview.view, 'key-press-event')
+        self.connectto(window.pageview.textview, 'key-press-event')
 
 
     @action(_('Auto_Completion'), ) # T: menu item
     def tag_auto_completion(self):
-        text_view = self.window.pageview.view
-        all_tags = self.window.ui.notebook.tags.list_all_tags()
+        text_view = self.window.pageview.textview
+        tagview = TagsView.new_from_index(self.window.pageview.notebook.index)
+        all_tags = tagview.list_all_tags()
         self.tag_list = []
         activation_char = "@"
         for tag in all_tags:
@@ -89,7 +94,7 @@ class MainWindowExtension(WindowExtension):
         tag_auto_completion.completion(self.tag_list)
 
     def on_key_press_event(self, widget, event):
-        if gtk.gdk.keyval_name(event.keyval) == ACTKEY:
+        if Gdk.keyval_name(event.keyval) == ACTKEY:
             self.tag_auto_completion()
 
 
@@ -99,7 +104,7 @@ WIN_WIDTH = 200
 WIN_HEIGHT = 200
 
 SHIFT = ('Shift_L', 'Shift_R')
-KEYSTATES = gtk.gdk.CONTROL_MASK |gtk.gdk.META_MASK| gtk.gdk.MOD1_MASK | gtk.gdk.LOCK_MASK
+KEYSTATES = Gdk.ModifierType.CONTROL_MASK |Gdk.ModifierType.META_MASK| Gdk.ModifierType.MOD1_MASK | Gdk.ModifierType.LOCK_MASK
 IGNORE_KEYS = ['Up', 'Down', 'Page_Up', 'Page_Down', 'Left', 'Right', \
                'Home', 'End', 'Menu', 'Scroll_Lock', 'Alt_L', 'Alt_R', \
                'VoidSymbol', 'Meta_L', 'Meta_R', 'Num_Lock', 'Insert', \
@@ -125,19 +130,20 @@ class AutoCompletionTreeView(object):
         self.completion_scrolled_win = ScrolledWindow(self.completion_tree_view)
         self.completion_win.add(self.completion_scrolled_win)
 
-        self.column = gtk.TreeViewColumn()
+        self.column = Gtk.TreeViewColumn()
         self.completion_tree_view.append_column(self.column)
 
-        self.renderer_text = gtk.CellRendererText()
+        self.renderer_text = Gtk.CellRendererText()
         self.column.pack_start(self.renderer_text, False)
         self.column.set_attributes(self.renderer_text, text=DATA_COL)
 
         # display an undecorated window with a grey border
         self.completion_scrolled_win.set_size_request(WIN_WIDTH, WIN_HEIGHT)
-        self.completion_scrolled_win.set_policy(gtk.POLICY_NEVER, gtk.POLICY_AUTOMATIC)
+        self.completion_scrolled_win.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         self.completion_win.set_decorated(False)
         self.completion_scrolled_win.set_border_width(2)
-        self.completion_scrolled_win.modify_bg(gtk.STATE_NORMAL, gtk.gdk.Color(GREY))
+        # TODO: Port the following line to GTK+3. Commented for now.
+        # self.completion_scrolled_win.modify_bg(Gtk.StateType.NORMAL, Gdk.Color(GREY))
         self.column.set_min_width(50)
 
         # hide column
@@ -145,7 +151,7 @@ class AutoCompletionTreeView(object):
 
 
 
-class AutoCompletion(gobject.GObject):
+class AutoCompletion(GObject.GObject):
     #todo: Make cursor visible
     #todo: get theme color to use for frame around completion window
     #todo: handling of modifier in Linux
@@ -153,14 +159,14 @@ class AutoCompletion(gobject.GObject):
 
     # define signal (closure type, return type and arg types)
     __gsignals__ = {
-        'tag-selected': (gobject.SIGNAL_RUN_LAST, None, (object,)),
+        'tag-selected': (GObject.SignalFlags.RUN_LAST, None, (object,)),
     }
 
     def __init__(self, plugin, text_view, window, activation_char, char_insert=False):
         '''
         Parameters for using this class:
-        - gtk.TextView
-        - the gtk.Window in which the TextView is added
+        - Gtk.TextView
+        - the Gtk.Window in which the TextView is added
         - list of unicode elements to be used for completion
         - a character which shall activate the class and if that char shall be inserted
           into the text buffer
@@ -171,18 +177,18 @@ class AutoCompletion(gobject.GObject):
         self.activation_char = activation_char
         self.char_insert = char_insert
 
-        self.real_model = gtk.ListStore(bool, str)
+        self.real_model = Gtk.ListStore(bool, str)
         self.model = self.real_model.filter_new()
         self.model.set_visible_column(VIS_COL)
-        self.model = gtk.TreeModelSort(self.model)
-        self.model.set_sort_column_id(DATA_COL, gtk.SORT_ASCENDING)
+        self.model = Gtk.TreeModelSort(self.model)
+        self.model.set_sort_column_id(DATA_COL, Gtk.SortType.ASCENDING)
         self.selected_data = ""
 
         # add F-Keys to ignore them later
         for f_key in range(1, 13):
             IGNORE_KEYS.append('F' + str(f_key))
 
-        gobject.GObject.__init__(self)
+        GObject.GObject.__init__(self)
 
     def completion(self, completion_list):
         self.entered_text = ""
@@ -254,22 +260,22 @@ class AutoCompletion(gobject.GObject):
         self.ac_tree_view.completion_win.destroy()
 
     def do_key_press(self, widget, event, completion_window):
-        modifier = event.state & KEYSTATES
+        modifier = event.get_state() & KEYSTATES
 
-        shift_mod = event.state & gtk.gdk.SHIFT_MASK
+        shift_mod = event.get_state() & Gdk.ModifierType.SHIFT_MASK
         buffer = self.text_view.get_buffer()
         cursor = buffer.get_iter_at_mark(buffer.get_insert())
 
-        if gtk.gdk.keyval_name(event.keyval) == 'Escape':
+        if Gdk.keyval_name(event.keyval) == 'Escape':
             completion_window.destroy()
             return
 
         # Ignore special keys
-        if gtk.gdk.keyval_name(event.keyval) in IGNORE_KEYS:
+        if Gdk.keyval_name(event.keyval) in IGNORE_KEYS:
             return
 
         # delete text from buffer and close if activation_char is identified
-        if gtk.gdk.keyval_name(event.keyval) == 'BackSpace':
+        if Gdk.keyval_name(event.keyval) == 'BackSpace':
             cursor.backward_chars(1)
             start = buffer.get_iter_at_mark(buffer.get_insert())
             char = buffer.get_text(start, cursor)
@@ -281,24 +287,24 @@ class AutoCompletion(gobject.GObject):
             self.update_completion_list()
             return
 
-        if event.get_state() & gtk.gdk.SHIFT_MASK and \
+        if event.get_state() & Gdk.ModifierType.SHIFT_MASK and \
                 self.plugin.preferences['space_selection'] and \
-                gtk.gdk.keyval_name(event.keyval) == 'space':
+                Gdk.keyval_name(event.keyval) == 'space':
             self.insert_data(" ")
             completion_window.destroy()
             return
 
-        if gtk.gdk.keyval_name(event.keyval) == 'Return':
+        if Gdk.keyval_name(event.keyval) == 'Return':
             self.insert_data()
             completion_window.destroy()
             return
 
-        if gtk.gdk.keyval_name(event.keyval) == "space":
+        if Gdk.keyval_name(event.keyval) == "space":
             buffer.insert(cursor, " ")
             completion_window.destroy()
             return
 
-        if gtk.gdk.keyval_name(event.keyval) == "Tab":
+        if Gdk.keyval_name(event.keyval) == "Tab":
             if self.plugin.preferences['tab_behaviour'] == 'select':
                 self.insert_data()
                 completion_window.destroy()
@@ -311,7 +317,7 @@ class AutoCompletion(gobject.GObject):
             self.tree_selection.select_path(next_path)
             return
 
-        if gtk.gdk.keyval_name(event.keyval) == "ISO_Left_Tab":
+        if Gdk.keyval_name(event.keyval) == "ISO_Left_Tab":
             if self.plugin.preferences['tab_behaviour'] == 'cycle':
                 # select previous item in tree
                 (model, path) = self.tree_selection.get_selected_rows()
@@ -324,10 +330,10 @@ class AutoCompletion(gobject.GObject):
 
         entered_chr = unichr(event.keyval)
         # for any upper case char
-        if shift_mod or gtk.gdk.keyval_name(event.keyval) in SHIFT:
+        if shift_mod or Gdk.keyval_name(event.keyval) in SHIFT:
             # to prevent that SHIFT code is added to buffer.
             # Don't know if there is another way to handle this
-            if gtk.gdk.keyval_name(event.keyval) in SHIFT:
+            if Gdk.keyval_name(event.keyval) in SHIFT:
                 return
             buffer.insert(cursor, entered_chr)
             self.entered_text += entered_chr
@@ -380,10 +386,10 @@ class AutoCompletion(gobject.GObject):
         iter_location = textview.get_iter_location(cursor)
         mark_x, mark_y = iter_location.x, iter_location.y + iter_location.height
         #calculate buffer-coordinates to coordinates within the window
-        win_location = textview.buffer_to_window_coords(gtk.TEXT_WINDOW_WIDGET,
+        win_location = textview.buffer_to_window_coords(Gtk.TextWindowType.WIDGET,
                                                         int(mark_x), int(mark_y))
         #now find the right window --> Editor Window and the right pos on screen
-        win = textview.get_window(gtk.TEXT_WINDOW_WIDGET)
+        win = textview.get_window(Gtk.TextWindowType.WIDGET)
         view_pos = win.get_position()
 
         xx = win_location[0] + view_pos[0]
