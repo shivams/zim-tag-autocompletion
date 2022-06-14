@@ -4,6 +4,7 @@ Tag autocompletion plugin for Zim Wiki.
 After typing `@`, a list of existing tags open up for autocompletion. 
 
 ## Release Notes
+* v0.95 : Adapted for Python >3.1
 * v0.94 : Ported to Zim v0.71 (tested)
 * v0.93 : Works with Zim v0.68 and possibly earlier (untested)
 
