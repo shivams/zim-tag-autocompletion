@@ -12,6 +12,7 @@
 # list within a given gtk.TextView widget
 # The signal 'tag-selected' is emitted together with the tag as argument when a tag is selected
 
+# v0.95 : Adapted for Python 3
 # v0.94 ((2019-08-28)): Ported to Zim 0.71, with GTK+ v3
 # v0.93 : Signal added
 
@@ -221,10 +222,10 @@ class AutoCompletion(GObject.GObject):
 
     def update_completion_list(self):
         tree_selection = self.ac_tree_view.completion_tree_view.get_selection()
-        entered_text = self.entered_text.decode('latin2')
+        entered_text = self.entered_text
         # filter list against input (find any)
         def filter(model, path, iter):
-            data = model[iter][DATA_COL].decode('latin2')
+            data = model[iter][DATA_COL]
             if entered_text.upper() in data.upper():
                 model[iter][VIS_COL] = True
             else:
@@ -235,13 +236,13 @@ class AutoCompletion(GObject.GObject):
 
     def select_match(self, tree_selection):
         path = None
-        entered_text = self.entered_text.decode('latin2')
+        entered_text = self.entered_text
 
         for index, element in enumerate(self.model):
             # set path = 0 to select first row if there is no hit on below statement
             path = 0
             # select first match of filtered list
-            if element[DATA_COL].decode('latin2').upper().startswith(entered_text.upper()):
+            if element[DATA_COL].upper().startswith(entered_text.upper()):
                 path = index
                 break
         # if there is no match where elements in model
@@ -328,7 +329,7 @@ class AutoCompletion(GObject.GObject):
             # SHIFT Tab is not used for selection
             return
 
-        entered_chr = unichr(event.keyval)
+        entered_chr = chr(event.keyval)
         # for any upper case char
         if shift_mod or Gdk.keyval_name(event.keyval) in SHIFT:
             # to prevent that SHIFT code is added to buffer.
