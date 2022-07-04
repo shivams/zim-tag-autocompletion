@@ -279,7 +279,7 @@ class AutoCompletion(GObject.GObject):
         if Gdk.keyval_name(event.keyval) == 'BackSpace':
             cursor.backward_chars(1)
             start = buffer.get_iter_at_mark(buffer.get_insert())
-            char = buffer.get_text(start, cursor)
+            char = buffer.get_text(start, cursor, include_hidden_chars=True)
             buffer.delete(start, cursor)
             if char == self.activation_char:
                 completion_window.destroy()
